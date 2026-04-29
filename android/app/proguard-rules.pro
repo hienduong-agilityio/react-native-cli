@@ -9,4 +9,5 @@
 
 # Add any project specific keep options here:
 
--keep class com.mypackage.BuildConfig { *; }
+-keep class com.reactnativetemplate.BuildConfig { *; }
+

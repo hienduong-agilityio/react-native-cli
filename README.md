@@ -185,6 +185,115 @@ The project maintains comprehensive test coverage:
 
 ---
 
+## CI/CD
+
+GitHub Actions pipelines run on every PR and on `main` merges. **All workflows execute on `runs-on: ubuntu-latest`** (no self-hosted runners — required for public repository security per [GitHub Docs](https://docs.github.com/actions/hosting-your-own-runners/managing-self-hosted-runners/about-self-hosted-runners#self-hosted-runner-security)).
+
+### Branch model (Git Flow)
+
+```mermaid
+flowchart LR
+  feat[feature/* branches] -->|PR| develop
+  develop -->|PR| main
+  develop -.->|push| QG1[PR Quality Gate]
+  main -.->|push| Build[Build Android AAB]
+```
+
+- **`develop`** (default): integration branch. PRs require Quality Gate.
+- **`main`**: release-ready code. Push triggers AAB build + signed artifact.
+
+### Workflows
+
+| Workflow                                                       | Trigger                                   | Purpose                                                                 |
+| -------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------- |
+| [`pr-quality-gate.yml`](.github/workflows/pr-quality-gate.yml) | PR → `develop`/`main`                     | Lint, prettier check, `tsc --noEmit`, Jest, dependency review, gitleaks |
+| [`codeql.yml`](.github/workflows/codeql.yml)                   | PR/push to `develop`/`main` + weekly cron | CodeQL SAST (security + code-quality queries)                           |
+| [`build-android.yml`](.github/workflows/build-android.yml)     | Push to `main` + `workflow_dispatch`      | `gradlew bundleRelease` → signed `.aab` artifact (30-day retention)     |
+| [`bundle-analyze.yml`](.github/workflows/bundle-analyze.yml)   | PR (JS/TS files)                          | Source map explorer report                                              |
+
+### Variables vs Secrets
+
+**Variables** (`${{ vars.X }}`) — non-sensitive, plaintext, audit-friendly.
+**Secrets** (`${{ secrets.X }}`) — encrypted, masked in logs.
+
+| Name                          | Type     | Scope          | Purpose                                          |
+| ----------------------------- | -------- | -------------- | ------------------------------------------------ |
+| `NODE_VERSION`                | Variable | Repo           | Node.js version (`20`)                           |
+| `JAVA_VERSION`                | Variable | Repo           | JDK version (`17`)                               |
+| `ANDROID_PACKAGE_NAME`        | Variable | Repo           | `com.reactnativetemplate`                        |
+| `WITH_ROZENITE`               | Variable | Repo           | `false` — disable Rozenite devtools in CI bundle |
+| `API_BASE_URL`                | Variable | Env (dev/prod) | Backend API base URL                             |
+| `STRAPI_BASE_URL`             | Variable | Env (dev/prod) | Strapi CMS base URL                              |
+| `LOAD_STORYBOOK`              | Variable | Env (dev/prod) | Toggle on-device Storybook                       |
+| `USES_CLEARTEXT_TRAFFIC`      | Variable | Env (dev/prod) | AndroidManifest cleartext flag                   |
+| `ANDROID_KEYSTORE_BASE64`     | Secret   | Repo           | base64-encoded `upload.keystore`                 |
+| `ANDROID_KEYSTORE_PASSWORD`   | Secret   | Repo           | Store password                                   |
+| `ANDROID_KEY_ALIAS`           | Secret   | Repo           | Key alias inside keystore                        |
+| `ANDROID_KEY_PASSWORD`        | Secret   | Repo           | Key password                                     |
+| `GOOGLE_SERVICES_JSON_BASE64` | Secret   | Repo           | base64-encoded `google-services.json` (FCM)      |
+
+**`.env.production` is gitignored** and generated in CI from environment Variables. **`google-services.json` is gitignored** and restored from the secret at build time.
+
+### How signing works without modifying `build.gradle`
+
+[`.github/gradle/signing.init.gradle`](.github/gradle/signing.init.gradle) is a Gradle init script applied via `--init-script` at CI runtime. It injects a `release` signingConfig from environment variables — the project's `android/app/build.gradle` is never touched, so local debug builds are unaffected.
+
+### Runbook
+
+#### Download a built AAB
+
+```bash
+gh run list --workflow=build-android.yml --limit 5
+gh run download <run-id> -n app-release-<run-number>-<sha>
+```
+
+The AAB at `app-release.aab` can be uploaded manually to Play Console (Internal testing → Create new release).
+
+#### Trigger a build manually
+
+```bash
+gh workflow run build-android.yml --ref main \
+  -f release_notes="Optional release notes"
+```
+
+#### Rotate the upload keystore
+
+1. Generate a new keystore: `keytool -genkeypair -v -keystore ~/upload-new.keystore ...`
+2. Update 4 secrets:
+   ```bash
+   gh secret set ANDROID_KEYSTORE_BASE64 --body "$(base64 -i ~/upload-new.keystore)"
+   gh secret set ANDROID_KEYSTORE_PASSWORD
+   gh secret set ANDROID_KEY_ALIAS --body "<new-alias>"
+   gh secret set ANDROID_KEY_PASSWORD
+   ```
+3. Note: the **first** AAB signed with a new key requires Play Console "Upload key reset" if the app already exists on Play.
+
+#### Rotate the Firebase API key
+
+The previous `google-services.json` was committed to git history (commits before the CI/CD setup). Rotate the API key in [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials), restrict it to the app's package name + SHA-256, then update `GOOGLE_SERVICES_JSON_BASE64`.
+
+#### Add a new environment variable to production builds
+
+1. `gh variable set <NAME> --env production --body "<value>"`
+2. Add the line to the `Generate .env.production` step in [`build-android.yml`](.github/workflows/build-android.yml).
+3. Add the key to [`react-native-config.d.ts`](react-native-config.d.ts) for type safety.
+
+### Build time expectations
+
+- **First run** (cold cache): ~20–25 min
+- **Subsequent runs** (warm Gradle + Yarn cache): ~8–12 min
+- **`pr-quality-gate`**: ~3–5 min total (jobs run in parallel)
+
+### Known limitations
+
+- Self-hosted runners are not used (public-repo security). Switch to private repo if dedicated build infra is needed.
+- iOS builds are out of scope for this CI setup.
+- E2E tests with a real Android emulator are not configured (use [Firebase Test Lab](https://firebase.google.com/docs/test-lab) for device testing).
+- Play Console upload is **manual** — download the AAB artifact and upload via the console UI.
+- The `unit-test` job is currently `continue-on-error: true` while pre-existing failing tests are fixed; quality-gate ignores its result. Remove the flag after tests are healthy.
+
+---
+
 ## Backend Integration
 
 ### 🗄️ Strapi v5 CMS
