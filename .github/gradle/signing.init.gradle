@@ -1,0 +1,52 @@
+/*
+ * Gradle init script that injects a `release` signing config into the Android
+ * application module without modifying the project's source `build.gradle`.
+ *
+ * Applied at CI runtime via `--init-script`, e.g.:
+ *
+ *     ./gradlew bundleRelease \
+ *       --init-script ../.github/gradle/signing.init.gradle
+ *
+ * Required environment variables (set by the workflow that calls Gradle):
+ *   - ANDROID_KEYSTORE_PATH      Absolute path to the upload keystore file.
+ *   - ANDROID_KEYSTORE_PASSWORD  Store password.
+ *   - ANDROID_KEY_ALIAS          Key alias inside the keystore.
+ *   - ANDROID_KEY_PASSWORD       Key password.
+ *
+ * Local development (debug builds) is not affected because this file is never
+ * applied without the explicit `--init-script` flag.
+ */
+allprojects {
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin('com.android.application')) {
+            def keystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+            def keystorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+            def keyAlias = System.getenv('ANDROID_KEY_ALIAS')
+            def keyPassword = System.getenv('ANDROID_KEY_PASSWORD')
+
+            if (!keystorePath || !keystorePassword || !keyAlias || !keyPassword) {
+                throw new GradleException(
+                    'signing.init.gradle: missing one or more required env vars ' +
+                    '(ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ' +
+                    'ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD).'
+                )
+            }
+
+            project.android {
+                signingConfigs {
+                    release {
+                        storeFile file(keystorePath)
+                        storePassword keystorePassword
+                        keyAlias keyAlias
+                        keyPassword keyPassword
+                    }
+                }
+                buildTypes {
+                    release {
+                        signingConfig = signingConfigs.release
+                    }
+                }
+            }
+        }
+    }
+}
