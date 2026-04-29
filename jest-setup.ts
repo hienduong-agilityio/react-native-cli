@@ -110,3 +110,16 @@ jest.mock('react-native-config', () => ({
     REQUIRE_HTTPS: 'false',
   },
 }));
+
+// Mock @rozenite/* devtools plugins (dev-only, no-op in test/CI)
+jest.mock('@rozenite/tanstack-query-plugin', () => ({
+  useTanStackQueryDevTools: jest.fn(),
+}));
+
+jest.mock('@rozenite/network-activity-plugin', () => ({
+  useNetworkActivityDevTools: jest.fn(),
+}));
+
+jest.mock('@rozenite/performance-monitor-plugin', () => ({
+  usePerformanceMonitorDevTools: jest.fn(),
+}));

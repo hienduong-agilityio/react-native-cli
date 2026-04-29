@@ -78,3 +78,8 @@ tmp/
 
 .env
 .env.production
+
+# Firebase config (restored from CI secret GOOGLE_SERVICES_JSON_BASE64)
+android/app/google-services.json
+ios/GoogleService-Info.plist
+
