@@ -75,6 +75,9 @@ jobs:
           keyPassword=$ANDROID_KEY_PASSWORD
           EOF
 
+      - name: Clear stale React Native autolinking metadata
+        run: rm -rf android/build/generated/autolinking
+
       - name: Build signed release AAB
         working-directory: android
         run: ./gradlew bundleRelease --no-daemon --stacktrace
