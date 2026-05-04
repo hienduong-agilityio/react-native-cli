@@ -121,6 +121,15 @@ android {
                     'CI release build requires android/keystore.properties. ' +
                     'See .github/workflows/build-android.yml step "Decode keystore + write keystore.properties".'
                 )
+            } else {
+                // Avoid empty release signing (AGP NPE in signReleaseBundle). Local only — not valid for Play upload.
+                logger.lifecycle(
+                    '[android] release: no android/keystore.properties — using debug keystore (CI uses real signing).'
+                )
+                storeFile = file('debug.keystore')
+                storePassword = 'android'
+                keyAlias = 'androiddebugkey'
+                keyPassword = 'android'
             }
         }
     }
