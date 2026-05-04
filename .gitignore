@@ -33,7 +33,6 @@ local.properties
 .cxx/
 *.keystore
 !debug.keystore
-android/keystore.properties
 
 # node.js
 #
@@ -83,4 +82,8 @@ tmp/
 # Firebase config (restored from CI secret GOOGLE_SERVICES_JSON_BASE64)
 android/app/google-services.json
 ios/GoogleService-Info.plist
+
+# Android signing files (restored from CI secrets, never commit)
+android/keystore.properties
+android/app/upload.keystore
 
