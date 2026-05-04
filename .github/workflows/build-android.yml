@@ -56,6 +56,11 @@ jobs:
       - name: Install JS dependencies
         run: yarn install --frozen-lockfile
 
+      # Gradle's cached autolinking.json can skip `npx @react-native-community/cli config` and leave
+      # native modules like `:react-native-config` unloaded → "Project ':react-native-config' could not be found".
+      - name: Clear stale React Native autolinking metadata
+        run: rm -rf android/build/generated/autolinking
+
       - name: Restore google-services.json from secret
         env:
           GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
@@ -116,6 +121,9 @@ jobs:
 
       - name: Install JS dependencies
         run: yarn install --frozen-lockfile
+
+      - name: Clear stale React Native autolinking metadata
+        run: rm -rf android/build/generated/autolinking
 
       - name: Generate .env.production from environment variables
         run: |
