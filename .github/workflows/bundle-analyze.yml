@@ -18,8 +18,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'yarn'
+          node-version: ${{ vars.NODE_VERSION }}
+          cache: yarn
 
       - run: yarn install --frozen-lockfile
 

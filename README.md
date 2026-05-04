@@ -216,27 +216,31 @@ flowchart LR
 **Variables** (`${{ vars.X }}`) — non-sensitive, plaintext, audit-friendly.
 **Secrets** (`${{ secrets.X }}`) — encrypted, masked in logs.
 
-| Name                          | Type     | Scope          | Purpose                                                                          |
-| ----------------------------- | -------- | -------------- | -------------------------------------------------------------------------------- |
-| `NODE_VERSION`                | Variable | Repo           | Node.js version (`20`)                                                           |
-| `JAVA_VERSION`                | Variable | Repo           | JDK version (`17`)                                                               |
-| `ANDROID_PACKAGE_NAME`        | Variable | Repo           | `com.reactnativetemplate`                                                        |
-| `WITH_ROZENITE`               | Variable | Repo           | `false` — disable Rozenite devtools in CI bundle                                 |
-| `API_BASE_URL`                | Variable | Env (dev/prod) | Backend API base URL                                                             |
-| `STRAPI_BASE_URL`             | Variable | Env (dev/prod) | Strapi CMS base URL                                                              |
-| `LOAD_STORYBOOK`              | Variable | Env (dev/prod) | Toggle on-device Storybook                                                       |
-| `USES_CLEARTEXT_TRAFFIC`      | Variable | Env (dev/prod) | AndroidManifest cleartext flag                                                   |
-| `ANDROID_KEYSTORE_BASE64`     | Secret   | Repo           | base64-encoded upload keystore (decoded to `android/app/release.keystore` in CI) |
-| `ANDROID_KEYSTORE_PASSWORD`   | Secret   | Repo           | Store password                                                                   |
-| `ANDROID_KEY_ALIAS`           | Secret   | Repo           | Key alias inside keystore                                                        |
-| `ANDROID_KEY_PASSWORD`        | Secret   | Repo           | Key password                                                                     |
-| `GOOGLE_SERVICES_JSON_BASE64` | Secret   | Repo           | base64-encoded `google-services.json` (FCM)                                      |
+| Name                          | Type     | Scope          | Purpose                                          |
+| ----------------------------- | -------- | -------------- | ------------------------------------------------ |
+| `NODE_VERSION`                | Variable | Repo           | Node.js version (`20`)                           |
+| `JAVA_VERSION`                | Variable | Repo           | JDK version (`17`)                               |
+| `ANDROID_PACKAGE_NAME`        | Variable | Repo           | `com.reactnativetemplate`                        |
+| `WITH_ROZENITE`               | Variable | Repo           | `false` — disable Rozenite devtools in CI bundle |
+| `API_BASE_URL`                | Variable | Env (dev/prod) | Backend API base URL                             |
+| `STRAPI_BASE_URL`             | Variable | Env (dev/prod) | Strapi CMS base URL                              |
+| `LOAD_STORYBOOK`              | Variable | Env (dev/prod) | Toggle on-device Storybook                       |
+| `USES_CLEARTEXT_TRAFFIC`      | Variable | Env (dev/prod) | AndroidManifest cleartext flag                   |
+| `ANDROID_KEYSTORE_BASE64`     | Secret   | Repo           | base64-encoded `upload.keystore`                 |
+| `ANDROID_KEYSTORE_PASSWORD`   | Secret   | Repo           | Store password                                   |
+| `ANDROID_KEY_ALIAS`           | Secret   | Repo           | Key alias inside keystore                        |
+| `ANDROID_KEY_PASSWORD`        | Secret   | Repo           | Key password                                     |
+| `GOOGLE_SERVICES_JSON_BASE64` | Secret   | Repo           | base64-encoded `google-services.json` (FCM)      |
 
 **`.env.production` is gitignored** and generated in CI from environment Variables. **`google-services.json` is gitignored** and restored from the secret at build time.
 
 ### How release signing works
 
-CI writes `android/keystore.properties` and decodes the keystore to `android/app/release.keystore`, then runs `assembleRelease` / `bundleRelease`. In `android/app/build.gradle`, release signing uses that file when `keystore.properties` exists; local builds without that file keep using the debug keystore for release (as before).
+The CI build job decodes the upload keystore from `ANDROID_KEYSTORE_BASE64` and writes a standard `android/keystore.properties` file. [`android/app/build.gradle`](android/app/build.gradle) reads that file via the canonical `signingConfigs.release` block (industry standard, see [React Native docs](https://reactnative.dev/docs/signed-apk-android)). When `keystore.properties` is missing, local debug builds are unaffected; CI release builds throw a clear `GradleException`. Both `keystore.properties` and `upload.keystore` are gitignored.
+
+### Reusing the `setup-rn` composite action
+
+All workflows share a small composite action at [`.github/actions/setup-rn`](.github/actions/setup-rn) that runs `actions/setup-node@v4` with Yarn cache and `yarn install --frozen-lockfile`. Each workflow only needs `actions/checkout@v4` followed by `uses: ./.github/actions/setup-rn` and the `NODE_VERSION` env var.
 
 ### Runbook
 
@@ -244,19 +248,16 @@ CI writes `android/keystore.properties` and decodes the keystore to `android/app
 
 ```bash
 gh run list --workflow=build-android.yml --limit 5
-gh run download <run-id> -n android-release-aab-<run-number>-<sha>
+gh run download <run-id> -n app-release-<run-number>-<sha>
 ```
 
-The AAB can be uploaded manually to Play Console (Internal testing → Create new release).
+The AAB at `app-release.aab` can be uploaded manually to Play Console (Internal testing → Create new release).
 
 #### Trigger a build manually
 
 ```bash
-# Release APK + AAB (default)
-gh workflow run build-android.yml --ref main
-
-# Or choose debug APK only
-gh workflow run build-android.yml --ref main -f build_type=debug
+gh workflow run build-android.yml --ref main \
+  -f release_notes="Optional release notes"
 ```
 
 #### Rotate the upload keystore

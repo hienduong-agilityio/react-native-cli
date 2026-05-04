@@ -2,9 +2,7 @@ name: PR Quality Gate
 
 on:
   pull_request:
-    branches:
-      - develop
-      - main
+    branches: [develop, main]
   workflow_dispatch:
 
 concurrency:
@@ -16,17 +14,16 @@ permissions:
   pull-requests: read
   security-events: write
 
+env:
+  NODE_VERSION: ${{ vars.NODE_VERSION }}
+
 jobs:
   lint:
     name: ESLint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ vars.NODE_VERSION }}
-          cache: yarn
-      - run: yarn install --frozen-lockfile
+      - uses: ./.github/actions/setup-rn
       - run: yarn lint
 
   format:
@@ -34,11 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ vars.NODE_VERSION }}
-          cache: yarn
-      - run: yarn install --frozen-lockfile
+      - uses: ./.github/actions/setup-rn
       - run: yarn prettier:check
 
   typecheck:
@@ -46,30 +39,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ vars.NODE_VERSION }}
-          cache: yarn
-      - run: yarn install --frozen-lockfile
+      - uses: ./.github/actions/setup-rn
       - run: npx tsc --noEmit
 
   unit-test:
     name: Jest unit tests
     runs-on: ubuntu-latest
-    # TODO(rn-cicd): Remove `continue-on-error` once the existing 91 failing
-    # tests + 53 stale snapshots are fixed (tracking issue: TBD).
+    # TODO(rn-cicd): remove `continue-on-error` once stale snapshots + failing tests are fixed.
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ vars.NODE_VERSION }}
-          cache: yarn
-      - run: yarn install --frozen-lockfile
-      - name: Run Jest with coverage
-        run: yarn test:coverage --ci --maxWorkers=2
-      - name: Upload coverage report
-        if: always()
+      - uses: ./.github/actions/setup-rn
+      - run: yarn test:coverage --ci --maxWorkers=2
+      - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ github.run_id }}
@@ -79,8 +61,8 @@ jobs:
 
   dependency-review:
     name: Dependency review
-    runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/dependency-review-action@v4
@@ -110,7 +92,6 @@ jobs:
           RESULTS: ${{ toJson(needs) }}
         run: |
           echo "$RESULTS" | jq .
-          # Fail if any required job failed (skipped/cancelled also count as fail)
           if echo "$RESULTS" | jq -e '
             to_entries
             | map(select(.key != "unit-test"))

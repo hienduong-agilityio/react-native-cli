@@ -110,12 +110,17 @@ android {
             keyAlias = 'androiddebugkey'
             keyPassword = 'android'
         }
-       release {
+        release {
             if (keystorePropertiesFile.exists()) {
                 storeFile file(keystoreProperties['storeFile'])
                 storePassword keystoreProperties['storePassword']
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']
+            } else if (System.getenv('CI') == 'true') {
+                throw new GradleException(
+                    'CI release build requires android/keystore.properties. ' +
+                    'See .github/workflows/build-android.yml step "Decode keystore + write keystore.properties".'
+                )
             }
         }
     }
@@ -124,9 +129,9 @@ android {
             signingConfig = signingConfigs.debug
         }
         release {
-            signingConfig signingConfigs.release
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig = signingConfigs.release
+            minifyEnabled enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
 }

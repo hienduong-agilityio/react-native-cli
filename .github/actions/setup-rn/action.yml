@@ -1,0 +1,15 @@
+name: Setup React Native
+description: Configure Node.js with Yarn cache and install JS dependencies. Caller must `actions/checkout` first and set `NODE_VERSION` in env.
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: yarn
+
+    - name: Install JS dependencies
+      shell: bash
+      run: yarn install --frozen-lockfile
