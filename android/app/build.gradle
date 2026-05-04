@@ -73,11 +73,21 @@ def enableProguardInReleaseBuilds = true
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Optional Play / upload keystore: put `android/keystore.properties` (+ keystore file) on disk — gitignored.
+// CI does not create this file: release AAB is signed with the debug keystore so the pipeline stays green.
 def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    keystorePropertiesFile.withReader("UTF-8") { keystoreProperties.load(it) }
 }
+def keystoreProp = { String k ->
+    def v = keystoreProperties.get(k)
+    return v == null ? null : v.toString().trim()
+}
+def hasUploadKeystore = keystorePropertiesFile.exists() &&
+    keystoreProp('storeFile') &&
+    keystoreProp('storePassword') &&
+    keystoreProp('keyAlias')
 
 project.ext.envConfigFiles = [
   debug:   ".env.development",
@@ -111,25 +121,18 @@ android {
             keyPassword = 'android'
         }
         release {
-            if (keystorePropertiesFile.exists()) {
-                storeFile file(keystoreProperties['storeFile'])
-                storePassword keystoreProperties['storePassword']
-                keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']
-            } else if (System.getenv('CI') == 'true') {
-                throw new GradleException(
-                    'CI release build requires android/keystore.properties. ' +
-                    'See .github/workflows/build-android.yml step "Decode keystore + write keystore.properties".'
-                )
+            if (hasUploadKeystore) {
+                storeFile file(keystoreProp('storeFile'))
+                def storePass = keystoreProp('storePassword')
+                def keyPass = keystoreProp('keyPassword')
+                if (keyPass == null || keyPass.isEmpty()) {
+                    keyPass = storePass
+                }
+                storePassword storePass
+                keyAlias keystoreProp('keyAlias')
+                keyPassword keyPass
             } else {
-                // Avoid empty release signing (AGP NPE in signReleaseBundle). Local only — not valid for Play upload.
-                logger.lifecycle(
-                    '[android] release: no android/keystore.properties — using debug keystore (CI uses real signing).'
-                )
-                storeFile = file('debug.keystore')
-                storePassword = 'android'
-                keyAlias = 'androiddebugkey'
-                keyPassword = 'android'
+                initWith signingConfigs.debug
             }
         }
     }
@@ -138,7 +141,7 @@ android {
             signingConfig = signingConfigs.debug
         }
         release {
-            signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }

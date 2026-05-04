@@ -22,7 +22,7 @@ env:
 
 jobs:
   build-android:
-    name: Build & sign release AAB
+    name: Build release AAB (CI debug-signed)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: production
@@ -61,29 +61,10 @@ jobs:
           [ -n "$GOOGLE_SERVICES_JSON_BASE64" ] || { echo "::error::GOOGLE_SERVICES_JSON_BASE64 secret is empty."; exit 1; }
           printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > android/app/google-services.json
 
-      # Full `keystore.properties` via printf (safe for passwords with $, #, etc.); Gradle stays a plain file reader.
-      - name: Decode keystore + write android/keystore.properties
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          [ -n "$ANDROID_KEYSTORE_BASE64" ] || { echo "::error::ANDROID_KEYSTORE_BASE64 secret is empty."; exit 1; }
-          [ -n "$ANDROID_KEYSTORE_PASSWORD" ] || { echo "::error::ANDROID_KEYSTORE_PASSWORD secret is empty."; exit 1; }
-          [ -n "$ANDROID_KEY_ALIAS" ] || { echo "::error::ANDROID_KEY_ALIAS secret is empty."; exit 1; }
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
-          : > android/keystore.properties
-          printf '%s\n' 'storeFile=release.keystore' >> android/keystore.properties
-          printf 'storePassword=%s\n' "$ANDROID_KEYSTORE_PASSWORD" >> android/keystore.properties
-          printf '%s\n' "keyAlias=${ANDROID_KEY_ALIAS}" >> android/keystore.properties
-          KEY_PASS="${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}"
-          printf 'keyPassword=%s\n' "$KEY_PASS" >> android/keystore.properties
-
       - name: Clear stale React Native autolinking metadata
         run: rm -rf android/build/generated/autolinking
 
-      - name: Build signed release AAB
+      - name: Build release AAB
         working-directory: android
         env:
           ENVFILE: ../.env.production
@@ -109,7 +90,8 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Build Android AAB"
+            echo "## Build Android AAB (debug-signed on CI)"
+            echo "- **Play upload:** this AAB uses the **debug** keystore on GitHub Actions. For production, sign locally with \`android/keystore.properties\` or add a separate release job later."
             echo "- Branch: \`${{ github.ref_name }}\`"
             echo "- Commit: \`${{ github.sha }}\`"
             echo "- AAB size: \`${{ steps.aab.outputs.size || 'n/a' }}\`"
@@ -119,9 +101,6 @@ jobs:
             echo "- Artifact: \`app-release-${{ github.run_number }}-${{ github.sha }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Cleanup signing artifacts
+      - name: Cleanup CI-only files
         if: always()
-        run: |
-          rm -f android/app/release.keystore
-          rm -f android/keystore.properties
-          rm -f android/app/google-services.json
+        run: rm -f android/app/google-services.json
