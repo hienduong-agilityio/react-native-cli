@@ -34,6 +34,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: ./.github/actions/setup-rn
+        env:
+          NODE_ENV: development
 
       - name: Setup JDK ${{ vars.JAVA_VERSION }}
         uses: actions/setup-java@v4
