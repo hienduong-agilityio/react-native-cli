@@ -61,7 +61,8 @@ jobs:
           [ -n "$GOOGLE_SERVICES_JSON_BASE64" ] || { echo "::error::GOOGLE_SERVICES_JSON_BASE64 secret is empty."; exit 1; }
           printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > android/app/google-services.json
 
-      - name: Decode keystore + write keystore.properties
+      # Full `keystore.properties` via printf (safe for passwords with $, #, etc.); Gradle stays a plain file reader.
+      - name: Decode keystore + write android/keystore.properties
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -69,13 +70,15 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           [ -n "$ANDROID_KEYSTORE_BASE64" ] || { echo "::error::ANDROID_KEYSTORE_BASE64 secret is empty."; exit 1; }
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/upload.keystore
-          cat > android/keystore.properties <<EOF
-          storeFile=upload.keystore
-          storePassword=$ANDROID_KEYSTORE_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          keyPassword=$ANDROID_KEY_PASSWORD
-          EOF
+          [ -n "$ANDROID_KEYSTORE_PASSWORD" ] || { echo "::error::ANDROID_KEYSTORE_PASSWORD secret is empty."; exit 1; }
+          [ -n "$ANDROID_KEY_ALIAS" ] || { echo "::error::ANDROID_KEY_ALIAS secret is empty."; exit 1; }
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+          : > android/keystore.properties
+          printf '%s\n' 'storeFile=release.keystore' >> android/keystore.properties
+          printf 'storePassword=%s\n' "$ANDROID_KEYSTORE_PASSWORD" >> android/keystore.properties
+          printf '%s\n' "keyAlias=${ANDROID_KEY_ALIAS}" >> android/keystore.properties
+          KEY_PASS="${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}"
+          printf 'keyPassword=%s\n' "$KEY_PASS" >> android/keystore.properties
 
       - name: Clear stale React Native autolinking metadata
         run: rm -rf android/build/generated/autolinking
@@ -119,6 +122,6 @@ jobs:
       - name: Cleanup signing artifacts
         if: always()
         run: |
-          rm -f android/app/upload.keystore
+          rm -f android/app/release.keystore
           rm -f android/keystore.properties
           rm -f android/app/google-services.json
