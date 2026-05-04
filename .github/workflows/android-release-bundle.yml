@@ -1,0 +1,80 @@
+name: Android release bundle
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: Optional release notes (job summary)
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: ${{ vars.NODE_VERSION }}
+
+jobs:
+  build:
+    name: Play App Bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    env:
+      WITH_ROZENITE: ${{ vars.WITH_ROZENITE }}
+      NODE_ENV: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-android-build
+        with:
+          java-version: ${{ vars.JAVA_VERSION }}
+
+      - name: Create .env.production
+        run: |
+          cat > .env.production <<EOF
+          API_BASE_URL=${{ vars.API_BASE_URL }}
+          STRAPI_BASE_URL=${{ vars.STRAPI_BASE_URL }}
+          LOAD_STORYBOOK=${{ vars.LOAD_STORYBOOK }}
+          USES_CLEARTEXT_TRAFFIC=${{ vars.USES_CLEARTEXT_TRAFFIC }}
+          EOF
+
+      - name: Add google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          test -n "$GOOGLE_SERVICES_JSON_BASE64" || { echo "::error::Missing GOOGLE_SERVICES_JSON_BASE64"; exit 1; }
+          printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > android/app/google-services.json
+
+      - name: Clear autolinking cache
+        run: rm -rf android/build/generated/autolinking
+
+      - name: Gradle bundleRelease
+        working-directory: android
+        env:
+          ENVFILE: ../.env.production
+        run: ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release-bundle-${{ github.run_number }}-${{ github.sha }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+          if-no-files-found: error
+
+      - if: always()
+        run: |
+          echo "## Android release bundle (Play)" >> "$GITHUB_STEP_SUMMARY"
+          echo "CI signing is debug-only, not for Play production." >> "$GITHUB_STEP_SUMMARY"
+          echo "Artifact: **android-release-bundle-${{ github.run_number }}-${{ github.sha }}** (\`${{ github.ref_name }}\` @ \`${{ github.sha }}\`)" >> "$GITHUB_STEP_SUMMARY"
+          test -z "${{ github.event.inputs.release_notes }}" || echo "Notes: ${{ github.event.inputs.release_notes }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - if: always()
+        run: rm -f android/app/google-services.json

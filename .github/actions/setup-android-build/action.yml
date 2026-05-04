@@ -1,0 +1,21 @@
+name: Setup Android build
+description: Yarn (cached), JDK, Gradle (cached
+
+inputs:
+  java-version:
+    description: JDK version
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-rn
+      env:
+        NODE_ENV: development
+
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: ${{ inputs.java-version }}
+
+    - uses: gradle/actions/setup-gradle@v4
