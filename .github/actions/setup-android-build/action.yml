@@ -1,5 +1,5 @@
 name: Setup Android build
-description: Yarn (cached), JDK, Gradle (cached
+description: Yarn (cached), JDK, Gradle user-home cache
 
 inputs:
   java-version:
@@ -18,4 +18,13 @@ runs:
         distribution: temurin
         java-version: ${{ inputs.java-version }}
 
-    - uses: gradle/actions/setup-gradle@v4
+    # Match Gradle classpath changes via android Gradle inputs; restores wrapper + downloaded deps across runs.
+    - name: Cache Gradle caches and wrapper
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-

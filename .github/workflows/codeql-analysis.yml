@@ -1,0 +1,54 @@
+name: CodeQL security analysis
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - '**/*.md'
+      - '*.md'
+      - 'docs/**'
+  push:
+    branches: [develop, main]
+    paths-ignore:
+      - '**/*.md'
+      - '*.md'
+      - 'docs/**'
+  schedule:
+    # Weekly scan for newly disclosed patterns (cron still runs regardless of paths-ignore).
+    - cron: '0 3 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+env:
+  NODE_VERSION: ${{ vars.NODE_VERSION }}
+
+jobs:
+  analyze-javascript-typescript:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup React Native toolchain
+        uses: ./.github/actions/setup-rn
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:javascript-typescript'

@@ -1,0 +1,54 @@
+name: Static analysis
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: ${{ vars.NODE_VERSION }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: ./.github/actions/setup-rn
+      - run: yarn lint
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: ./.github/actions/setup-rn
+      - run: yarn prettier:check
+
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: ./.github/actions/setup-rn
+      - run: npx tsc --noEmit
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: ./.github/actions/setup-rn
+      - run: yarn test:coverage --ci --maxWorkers=2
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.run_id }}
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: ignore

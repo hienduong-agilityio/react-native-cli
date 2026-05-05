@@ -1,0 +1,67 @@
+name: Release AAB
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: Optional note for the job summary
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: ${{ vars.NODE_VERSION }}
+
+jobs:
+  aab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    env:
+      WITH_ROZENITE: ${{ vars.WITH_ROZENITE }}
+      NODE_ENV: production
+      GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/prepare-android
+        with:
+          java-version: ${{ vars.JAVA_VERSION }}
+          api-base-url: ${{ vars.API_BASE_URL }}
+          strapi-base-url: ${{ vars.STRAPI_BASE_URL }}
+          load-storybook: ${{ vars.LOAD_STORYBOOK }}
+          uses-cleartext-traffic: ${{ vars.USES_CLEARTEXT_TRAFFIC }}
+
+      - name: bundleRelease
+        working-directory: android
+        env:
+          ENVFILE: ${{ github.workspace }}/.env.production
+        run: ./gradlew bundleRelease --no-daemon --parallel --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-aab-${{ github.run_number }}-${{ github.sha }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+          if-no-files-found: error
+
+      - if: always()
+        run: |
+          echo "## AAB (Play)" >> "$GITHUB_STEP_SUMMARY"
+          echo "android-aab-${{ github.run_number }}-${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.release_notes != ''
+        run: printf '%s\n' "Notes — ${{ github.event.inputs.release_notes }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - if: always()
+        run: rm -f android/app/google-services.json

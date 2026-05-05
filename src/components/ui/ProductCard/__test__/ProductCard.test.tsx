@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react-native';
+import { renderWithProviders, screen, fireEvent } from '@app/test-utils';
 
 // Components
 import { ProductCard } from '@app/components/ui';
@@ -13,7 +13,7 @@ describe('ProductCard', () => {
   const product = getMockProduct('1')!;
 
   const renderProductCard = (overrides = {}) => {
-    return render(
+    return renderWithProviders(
       <ProductCard
         {...(product as unknown as IProductCardProps)}
         {...overrides}

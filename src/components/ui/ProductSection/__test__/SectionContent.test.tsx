@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { renderWithProviders, screen } from '@app/test-utils';
 
 // Components
 import { SectionContent } from '../SectionContent';
@@ -16,7 +16,7 @@ describe('SectionContent', () => {
   };
 
   const renderComponent = (overrides = {}) => {
-    return render(
+    return renderWithProviders(
       <SectionContent
         {...baseProps}
         {...overrides}

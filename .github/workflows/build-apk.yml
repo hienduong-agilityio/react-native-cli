@@ -1,0 +1,52 @@
+name: Build APK
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  WITH_ROZENITE: ${{ vars.WITH_ROZENITE }}
+  NODE_ENV: production
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/prepare-android
+        with:
+          java-version: ${{ vars.JAVA_VERSION }}
+          api-base-url: ${{ vars.API_BASE_URL }}
+          strapi-base-url: ${{ vars.STRAPI_BASE_URL }}
+          load-storybook: ${{ vars.LOAD_STORYBOOK }}
+          uses-cleartext-traffic: ${{ vars.USES_CLEARTEXT_TRAFFIC }}
+          google-services-missing-message: Missing GOOGLE_SERVICES_JSON_BASE64 (fork PRs have no secrets)
+
+      - name: assembleRelease
+        working-directory: android
+        env:
+          ENVFILE: ${{ github.workspace }}/.env.production
+        run: ./gradlew assembleRelease --no-daemon --parallel --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-pr-apk-${{ github.event.pull_request.number }}-${{ github.sha }}
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 7
+          if-no-files-found: error
+
+      - if: success()
+        run: |
+          echo "## APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "android-pr-apk-${{ github.event.pull_request.number }}-${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - if: always()
+        run: rm -f android/app/google-services.json

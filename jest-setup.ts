@@ -18,6 +18,7 @@ jest.mock('@notifee/react-native', () => {
     deleteChannel: jest.fn().mockResolvedValue(undefined),
     displayNotification: jest.fn().mockResolvedValue('notification-id'),
     onForegroundEvent: jest.fn().mockReturnValue(jest.fn()),
+    onBackgroundEvent: jest.fn().mockReturnValue(jest.fn()),
   };
 
   return {
