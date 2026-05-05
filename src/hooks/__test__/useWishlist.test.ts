@@ -209,7 +209,7 @@ describe('useWishlist', () => {
 
       expect(wishlistService.updateWishlistProducts).toHaveBeenCalledWith(
         'wishlist1',
-        [{ productId: '2' }],
+        [{ productId: '2', product: '2' }],
       );
       expect(added).toEqual(updatedWishlist);
     });
@@ -224,12 +224,18 @@ describe('useWishlist', () => {
       (wishlistService.ensureWishlistForUser as jest.Mock).mockResolvedValue(
         wishlistWithItem,
       );
+      (wishlistService.updateWishlistProducts as jest.Mock).mockResolvedValue(
+        wishlistWithItem,
+      );
 
       const { result } = renderHook(() => useWishlistActions());
 
       const added = await result.current.addItem('1');
 
-      expect(wishlistService.updateWishlistProducts).not.toHaveBeenCalled();
+      expect(wishlistService.updateWishlistProducts).toHaveBeenCalledWith(
+        'wishlist1',
+        [{ productId: '1', product: '1' }],
+      );
       expect(added).toEqual(wishlistWithItem);
     });
 
@@ -257,7 +263,7 @@ describe('useWishlist', () => {
 
       expect(wishlistService.updateWishlistProducts).toHaveBeenCalledWith(
         'wishlist1',
-        [{ productId: '2' }],
+        [{ productId: '2', product: '2' }],
       );
       expect(removed).toEqual(updatedWishlist);
     });
@@ -268,12 +274,21 @@ describe('useWishlist', () => {
         products: [{ productId: '1' }],
       };
       mockQueryClient.getQueryData.mockReturnValue(cachedWishlist);
+      (wishlistService.ensureWishlistForUser as jest.Mock).mockResolvedValue(
+        cachedWishlist,
+      );
+      (wishlistService.updateWishlistProducts as jest.Mock).mockResolvedValue({
+        ...cachedWishlist,
+        products: [{ productId: '1' }, { productId: '2' }],
+      });
 
       const { result } = renderHook(() => useWishlistActions());
 
       await result.current.addItem('2');
 
-      expect(wishlistService.ensureWishlistForUser).not.toHaveBeenCalled();
+      expect(wishlistService.ensureWishlistForUser).toHaveBeenCalledWith(
+        'user1',
+      );
       expect(wishlistService.updateWishlistProducts).toHaveBeenCalled();
     });
 
@@ -344,7 +359,7 @@ describe('useWishlist', () => {
 
       expect(wishlistService.updateWishlistProducts).toHaveBeenCalledWith(
         'wishlist1',
-        [{ productId: '1' }],
+        [{ productId: '1', product: '1' }],
       );
     });
   });

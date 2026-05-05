@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { renderWithProviders, screen } from '@app/test-utils';
 
 // Components
 import { ProductSection } from '@app/components/ui/ProductSection';
@@ -19,7 +19,9 @@ describe('ProductSection', () => {
   };
 
   const renderComponent = (overrides = {}) => {
-    return render(<ProductSection {...baseProps} {...overrides} />);
+    return renderWithProviders(
+      <ProductSection {...baseProps} {...overrides} />,
+    );
   };
 
   it('renders correctly with products', () => {

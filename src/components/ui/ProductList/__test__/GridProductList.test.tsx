@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react-native';
+import { renderWithProviders, screen, fireEvent } from '@app/test-utils';
 
 // Components
 import { GridProductList } from '../GridProductList';
@@ -19,7 +19,7 @@ describe('GridProductList', () => {
 
   describe('Rendering', () => {
     it('renders correctly with products and matches snapshot', () => {
-      const { toJSON } = render(
+      const { toJSON } = renderWithProviders(
         <GridProductList
           {...mockProps}
           products={mockProps.products as unknown as IProductCardProps[]}
@@ -31,7 +31,7 @@ describe('GridProductList', () => {
     });
 
     it('handles empty products array', () => {
-      render(
+      renderWithProviders(
         <GridProductList
           products={[] as unknown as IProductCardProps[]}
           onItemPress={jest.fn()}
@@ -63,7 +63,7 @@ describe('GridProductList', () => {
       ];
 
       testCases.forEach(({ props }) => {
-        const { unmount } = render(
+        const { unmount } = renderWithProviders(
           <GridProductList
             {...mockProps}
             {...props}
@@ -80,7 +80,7 @@ describe('GridProductList', () => {
         { ...MOCK_PRODUCTS[0], id: null, name: null },
       ] as unknown as IProductCardProps[];
 
-      render(
+      renderWithProviders(
         <GridProductList
           products={productsWithNullId}
           onItemPress={jest.fn()}
@@ -93,7 +93,7 @@ describe('GridProductList', () => {
 
   describe('Interactions', () => {
     it('calls onItemPress when product is pressed', () => {
-      render(
+      renderWithProviders(
         <GridProductList
           {...mockProps}
           products={mockProps.products as unknown as IProductCardProps[]}

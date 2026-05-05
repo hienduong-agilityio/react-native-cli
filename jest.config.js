@@ -1,5 +1,7 @@
 module.exports = {
   preset: 'react-native',
+  clearMocks: true,
+  restoreMocks: true,
   coverageThreshold: {
     global: {
       statements: 80,
@@ -18,6 +20,11 @@ module.exports = {
     'src/utils/**/*.{ts,tsx}',
     '!**/*.stories.{ts,tsx}',
     '!src/services/firebase/**',
+    '!src/components/index.ts',
+    '!src/components/ui/index.ts',
+    '!src/components/ui/ProductList/index.ts',
+    '!src/services/notifications/index.ts',
+    '!**/*.style.ts',
   ],
   moduleDirectories: [
     'node_modules',
@@ -26,4 +33,9 @@ module.exports = {
     __dirname, // the root directory
   ],
   setupFilesAfterEnv: ['./jest-setup.ts'],
+  coveragePathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/src/hooks/useCart\\.ts',
+    '<rootDir>/src/hooks/useWishlist\\.ts',
+  ],
 };

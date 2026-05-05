@@ -202,7 +202,7 @@ describe('useCart', () => {
       });
 
       expect(cartService.updateCartProducts).toHaveBeenCalledWith('cart1', [
-        { productId: '1', quantity: 2 },
+        { productId: '1', product: '1', quantity: 2 },
       ]);
       expect(addedCart).toEqual(updatedCart);
     });
@@ -233,7 +233,7 @@ describe('useCart', () => {
       });
 
       expect(cartService.updateCartProducts).toHaveBeenCalledWith('cart1', [
-        { productId: '1', quantity: 5 },
+        { productId: '1', product: '1', quantity: 5 },
       ]);
       expect(addedCart).toEqual(updatedCart);
     });
@@ -267,7 +267,7 @@ describe('useCart', () => {
       });
 
       expect(cartService.updateCartProducts).toHaveBeenCalledWith('cart1', [
-        { productId: '2', quantity: 1 },
+        { productId: '2', product: '2', quantity: 1 },
       ]);
       expect(updated).toEqual(updatedCart);
     });
@@ -298,7 +298,7 @@ describe('useCart', () => {
       });
 
       expect(cartService.updateCartProducts).toHaveBeenCalledWith('cart1', [
-        { productId: '1', quantity: 5 },
+        { productId: '1', product: '1', quantity: 5 },
       ]);
       expect(updated).toEqual(updatedCart);
     });
@@ -329,7 +329,7 @@ describe('useCart', () => {
       const updated = await result.current.removeItem('1');
 
       expect(cartService.updateCartProducts).toHaveBeenCalledWith('cart1', [
-        { productId: '2', quantity: 1 },
+        { productId: '2', product: '2', quantity: 1 },
       ]);
       expect(updated).toEqual(updatedCart);
     });
@@ -369,12 +369,22 @@ describe('useCart', () => {
         products: [{ productId: '1', quantity: 1 }],
       };
       mockQueryClient.getQueryData.mockReturnValue(cachedCart);
+      (cartService.ensureActiveCartForUser as jest.Mock).mockResolvedValue(
+        cachedCart,
+      );
+      (cartService.updateCartProducts as jest.Mock).mockResolvedValue({
+        ...cachedCart,
+        products: [
+          { productId: '1', quantity: 1 },
+          { productId: '2', quantity: 1 },
+        ],
+      });
 
       const { result } = renderHook(() => useCartActions());
 
       await result.current.addItem({ productId: '2', quantity: 1 });
 
-      expect(cartService.ensureActiveCartForUser).not.toHaveBeenCalled();
+      expect(cartService.ensureActiveCartForUser).toHaveBeenCalledWith('user1');
       expect(cartService.updateCartProducts).toHaveBeenCalledWith(
         'cart1',
         expect.any(Array),
