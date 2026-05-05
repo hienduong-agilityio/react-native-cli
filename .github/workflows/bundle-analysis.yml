@@ -1,0 +1,44 @@
+name: Bundle analysis
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "**/*.js"
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "package.json"
+      - "yarn.lock"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bundle-analysis:
+    name: Metro — bundle size analysis
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_VERSION: ${{ vars.NODE_VERSION }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup React Native toolchain
+        uses: ./.github/actions/setup-rn
+
+      - name: Analyze bundle (JSON)
+        run: yarn analyze:bundle
+
+      - name: Report bundle size
+        run: node scripts/report-bundle-size.js
+
+      - name: Upload bundle reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-analysis
+          path: tmp/*.json

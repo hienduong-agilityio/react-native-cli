@@ -1,0 +1,75 @@
+name: Verify
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - "**/*.md"
+      - "*.md"
+      - "docs/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+
+jobs:
+  path-apk:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.end.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: paths
+        if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            apk:
+              - 'android/**'
+              - 'src/**'
+              - '.github/actions/**'
+              - '.github/workflows/**'
+              - 'package.json'
+              - 'yarn.lock'
+              - 'index.js'
+              - 'metro.config.js'
+              - 'babel.config.js'
+              - 'react-native.config.js'
+
+      - id: end
+        env:
+          FILTER: ${{ steps.paths.outputs.apk }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        shell: bash
+        run: |
+          build=false
+          if [[ "${EVENT_NAME}" == "pull_request" && "${BASE_REF}" == "develop" && "${FILTER:-}" == "true" ]]; then
+            build=true
+          fi
+          echo "build=${build}" >> "$GITHUB_OUTPUT"
+
+  static-analysis:
+    uses: ./.github/workflows/static-analysis.yml
+
+  security-scan:
+    uses: ./.github/workflows/security-scan.yml
+    secrets: inherit
+
+  apk:
+    name: Artifact APK
+    needs:
+      - path-apk
+      - static-analysis
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.path-apk.outputs.build == 'true'
+    uses: ./.github/workflows/build-apk.yml
+    secrets: inherit

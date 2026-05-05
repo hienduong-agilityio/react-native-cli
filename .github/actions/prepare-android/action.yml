@@ -1,0 +1,48 @@
+name: Prepare Android build
+description: After checkout — JDK/Node/Yarn, .env.production, Firebase google-services.json, clear RN autolinking
+
+inputs:
+  java-version:
+    description: JDK version passed to setup-android-build / setup-java
+    required: true
+  api-base-url:
+    description: Value for API_BASE_URL in .env.production
+    required: true
+  strapi-base-url:
+    description: Value for STRAPI_BASE_URL in .env.production
+    required: true
+  load-storybook:
+    description: Value for LOAD_STORYBOOK in .env.production
+    required: true
+  uses-cleartext-traffic:
+    description: Value for USES_CLEARTEXT_TRAFFIC in .env.production
+    required: true
+  google-services-missing-message:
+    description: "Logged when env GOOGLE_SERVICES_JSON_BASE64 is empty (GitHub error annotation)"
+    required: false
+    default: Missing GOOGLE_SERVICES_JSON_BASE64
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-android-build
+      with:
+        java-version: ${{ inputs.java-version }}
+
+    - shell: bash
+      run: |
+        cat > .env.production <<EOF
+        API_BASE_URL=${{ inputs.api-base-url }}
+        STRAPI_BASE_URL=${{ inputs.strapi-base-url }}
+        LOAD_STORYBOOK=${{ inputs.load-storybook }}
+        USES_CLEARTEXT_TRAFFIC=${{ inputs.uses-cleartext-traffic }}
+        EOF
+
+    - shell: bash
+      run: |
+        test -n "${GOOGLE_SERVICES_JSON_BASE64:-}" \
+          || { echo "::error::${{ inputs.google-services-missing-message }}"; exit 1; }
+        printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > android/app/google-services.json
+
+    - shell: bash
+      run: rm -rf android/build/generated/autolinking
