@@ -1,11 +1,23 @@
 name: Setup React Native
-description: Configure Node.js with Yarn cache and install JS dependencies
+description: |
+  Configure Node.js with Yarn cache and install JS dependencies.
+
+inputs:
+  skip-node-setup:
+    description: If true, skip actions/setup-node and use Node already on PATH
+    required: false
+    default: "false"
+  yarn-install:
+    description: If false, skip node_modules cache restore and yarn install
+    required: false
+    default: "true"
 
 runs:
   using: composite
   steps:
     # Restore node_modules from actions/cache keyed by yarn.lock so installs skip cold resolution.
     - name: Cache node_modules (yarn.lock)
+      if: ${{ inputs.yarn-install == 'true' }}
       uses: actions/cache@v4
       with:
         path: node_modules
@@ -14,11 +26,13 @@ runs:
           ${{ runner.os }}-node-modules-
 
     - name: Setup Node.js ${{ env.NODE_VERSION }}
+      if: ${{ inputs.skip-node-setup != 'true' }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
 
     - name: Install JS dependencies
+      if: ${{ inputs.yarn-install == 'true' }}
       shell: bash
       run: yarn install --frozen-lockfile

@@ -17,7 +17,7 @@ concurrency:
 jobs:
   bundle-analysis:
     name: Metro — bundle size analysis
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     env:
       NODE_VERSION: ${{ vars.NODE_VERSION }}

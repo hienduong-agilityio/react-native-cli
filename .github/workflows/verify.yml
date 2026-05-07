@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   path-apk:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       build: ${{ steps.end.outputs.build }}
     steps:

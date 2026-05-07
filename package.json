@@ -20,6 +20,7 @@
     "test:deep-link:android": "adb shell am start -W -a android.intent.action.VIEW -d \"stylish://products/itgkaxmarsxs4vxpxx3fiad5\" com.reactnativetemplate",
     "test:deep-link:ios": "xcrun simctl openurl booted \"stylish://products/itgkaxmarsxs4vxpxx3fiad5\"",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "lint:check": "eslint . && tsc --noEmit",
     "lint:fix": "eslint --fix .",
     "prettier": "prettier \"**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
