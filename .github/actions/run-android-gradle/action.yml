@@ -1,0 +1,24 @@
+name: Run Android Gradle
+description: |
+  Runs ./gradlew in android/. JS env is consumed by react-native-config via dotenv.gradle
+
+inputs:
+  tasks:
+    description: Space-separated Gradle tasks (e.g. assembleRelease or "assembleRelease bundleRelease")
+    required: true
+  working-directory:
+    description: Folder that contains gradlew
+    required: false
+    default: android
+  envfile:
+    description: Optional; reserved for workflows that pass a path (no-op here—prepare-android writes .env.production)
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Gradle ${{ inputs.tasks }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ./gradlew ${{ inputs.tasks }} --no-daemon --stacktrace

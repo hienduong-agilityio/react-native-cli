@@ -1,5 +1,6 @@
-name: Release AAB
+name: Release main — AAB + APK
 
+# Runs on push to main (merges, direct pushes, etc.).
 on:
   push:
     branches: [main]
@@ -14,17 +15,23 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# actions:read — notify job downloads the APK artifact (AAB is not emailed).
 permissions:
   contents: read
+  actions: read
 
 env:
   NODE_VERSION: ${{ vars.NODE_VERSION }}
 
 jobs:
-  aab:
+  android_release:
+    name: Android release (AAB + APK)
     runs-on: self-hosted
     timeout-minutes: 60
     environment: production
+    outputs:
+      apk_artifact: ${{ steps.artifact_names.outputs.apk }}
+      aab_artifact: ${{ steps.artifact_names.outputs.aab }}
     env:
       WITH_ROZENITE: ${{ vars.WITH_ROZENITE }}
       NODE_ENV: production
@@ -42,26 +49,100 @@ jobs:
           load-storybook: ${{ vars.LOAD_STORYBOOK }}
           uses-cleartext-traffic: ${{ vars.USES_CLEARTEXT_TRAFFIC }}
 
-      - name: bundleRelease
-        working-directory: android
-        env:
-          ENVFILE: ${{ github.workspace }}/.env.production
-        run: ./gradlew bundleRelease --no-daemon --parallel --stacktrace
+      - id: artifact_names
+        shell: bash
+        run: |
+          echo "aab=android-aab-${{ github.run_number }}-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "apk=android-main-apk-${{ github.run_number }}-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/run-android-gradle
+        with:
+          tasks: assembleRelease bundleRelease
+          envfile: ${{ github.workspace }}/.env.production
 
       - uses: actions/upload-artifact@v4
         with:
-          name: android-aab-${{ github.run_number }}-${{ github.sha }}
+          name: ${{ steps.artifact_names.outputs.aab }}
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
           if-no-files-found: error
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact_names.outputs.apk }}
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
+          if-no-files-found: error
+
       - if: always()
+        shell: bash
         run: |
-          echo "## AAB (Play)" >> "$GITHUB_STEP_SUMMARY"
-          echo "android-aab-${{ github.run_number }}-${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## AAB (Play Store artifact)"
+            echo "${{ steps.artifact_names.outputs.aab }}"
+            echo ""
+            echo "## APK (artifact; email attaches APK only)"
+            echo "${{ steps.artifact_names.outputs.apk }}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.release_notes != ''
+        shell: bash
         run: printf '%s\n' "Notes — ${{ github.event.inputs.release_notes }}" >> "$GITHUB_STEP_SUMMARY"
 
       - if: always()
+        shell: bash
         run: rm -f android/app/google-services.json
+
+  notify_apk:
+    name: Email APK only
+    needs: android_release
+    runs-on: ubuntu-latest
+    environment: production
+    # Composite: download APK artifact from this run + SMTP. AAB never attached.
+    #
+    # Repo / environment variables:
+    #   APK_EMAIL_ENABLED=true  — master switch
+    #   APK_EMAIL_TO            — comma-separated (e.g. a@x.com, b@x.com)
+    #   MAIL_FROM               — SMTP From (e.g. "Build Bot <mail@gmail.com>")
+    #   APK_EMAIL_MAIN_PUSH_FILTER — optional: omit or "develop_merge" (default) | "all"
+    #       develop_merge: email only on push to main when merge message looks like develop→main,
+    #                     or on workflow_dispatch (manual). Use "all" if you squash-merge and lose that message.
+    # Environment production secrets: MAIL_USERNAME, MAIL_PASSWORD (Gmail → App Password).
+    if: >-
+      success() &&
+      vars.APK_EMAIL_ENABLED == 'true' &&
+      vars.APK_EMAIL_TO != '' &&
+      vars.MAIL_FROM != '' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'push' &&
+          (
+            vars.APK_EMAIL_MAIN_PUSH_FILTER == 'all' ||
+            (
+              (
+                vars.APK_EMAIL_MAIN_PUSH_FILTER == '' ||
+                vars.APK_EMAIL_MAIN_PUSH_FILTER == 'develop_merge'
+              ) &&
+              github.event.head_commit != null &&
+              (
+                contains(github.event.head_commit.message, '/develop') ||
+                contains(github.event.head_commit.message, 'Merge branch ''develop''')
+              )
+            )
+          )
+        )
+      )
+    steps:
+      - uses: ./.github/actions/notify-apk-email
+        with:
+          artifact-name: ${{ needs.android_release.outputs.apk_artifact }}
+          mail-subject: >-
+            [${{ github.event.repository.name }}] APK main #${{ github.run_number }} (${{ github.sha }})
+          mail-to: ${{ vars.APK_EMAIL_TO }}
+          mail-from: ${{ vars.MAIL_FROM }}
+          mail-username: ${{ secrets.MAIL_USERNAME }}
+          mail-password: ${{ secrets.MAIL_PASSWORD }}
+          smtp-server: ${{ vars.SMTP_SERVER || 'smtp.gmail.com' }}
+          smtp-port: ${{ vars.SMTP_PORT || '465' }}
+          smtp-secure: ${{ vars.SMTP_SECURE || 'true' }}

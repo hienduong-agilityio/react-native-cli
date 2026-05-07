@@ -1,0 +1,81 @@
+name: Notify APK by email
+description: |
+  Downloads a single APK workflow artifact by name (same workflow run) and sends it via SMTP.
+  Does not attach AAB or other artifacts.
+
+inputs:
+  artifact-name:
+    description: Artifact name uploaded by assembleRelease — must contain one .apk
+    required: true
+  download-path:
+    description: Directory to extract the artifact into
+    required: false
+    default: apk-artifact
+  mail-subject:
+    description: Email subject line
+    required: true
+  mail-to:
+    description: Comma-separated recipient addresses
+    required: true
+  mail-from:
+    description: From address (e.g. '"CI" <noreply@gmail.com>')
+    required: true
+  mail-body:
+    description: Plain text body
+    required: false
+    default: |-
+      Attached is the release APK from the latest successful main-branch Android build run.
+      AAB artifacts are uploaded to Actions only and are never emailed by this workflow.
+  mail-username:
+    description: SMTP username (store in secret)
+    required: true
+  mail-password:
+    description: SMTP password or app password (store in secret)
+    required: true
+  smtp-server:
+    description: SMTP hostname
+    required: false
+    default: smtp.gmail.com
+  smtp-port:
+    description: SMTP port (465 TLS common for Gmail)
+    required: false
+    default: "465"
+  smtp-secure:
+    description: "true for TLS on 465"
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Download APK artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs['artifact-name'] }}
+        path: ${{ inputs['download-path'] }}
+
+    - name: Resolve APK path
+      id: apk
+      shell: bash
+      run: |
+        set -euo pipefail
+        mapfile -t apks < <(find "${{ inputs['download-path'] }}" -type f -name '*.apk' | sort)
+        if [[ "${#apks[@]}" -ne 1 ]]; then
+          echo "::error::Expected exactly one .apk in artifact, got ${#apks[@]}: ${apks[*]}"
+          exit 1
+        fi
+        echo "rel=${apks[0]}" >> "$GITHUB_OUTPUT"
+
+    - name: Send email with APK
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: ${{ inputs['smtp-server'] }}
+        server_port: ${{ inputs['smtp-port'] }}
+        secure: ${{ inputs['smtp-secure'] == 'true' }}
+        username: ${{ inputs['mail-username'] }}
+        password: ${{ inputs['mail-password'] }}
+        subject: ${{ inputs['mail-subject'] }}
+        to: ${{ inputs['mail-to'] }}
+        from: ${{ inputs['mail-from'] }}
+        body: ${{ inputs['mail-body'] }}
+        attachments: ${{ steps.apk.outputs.rel }}

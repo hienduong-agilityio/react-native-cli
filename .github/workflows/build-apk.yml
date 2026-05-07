@@ -7,6 +7,7 @@ permissions:
   contents: read
 
 env:
+  NODE_VERSION: ${{ vars.NODE_VERSION }}
   WITH_ROZENITE: ${{ vars.WITH_ROZENITE }}
   NODE_ENV: production
 
@@ -30,11 +31,10 @@ jobs:
           uses-cleartext-traffic: ${{ vars.USES_CLEARTEXT_TRAFFIC }}
           google-services-missing-message: Missing GOOGLE_SERVICES_JSON_BASE64 (fork PRs have no secrets)
 
-      - name: assembleRelease
-        working-directory: android
-        env:
-          ENVFILE: ${{ github.workspace }}/.env.production
-        run: ./gradlew assembleRelease --no-daemon --parallel --stacktrace
+      - uses: ./.github/actions/run-android-gradle
+        with:
+          tasks: assembleRelease
+          envfile: ${{ github.workspace }}/.env.production
 
       - uses: actions/upload-artifact@v4
         with:
