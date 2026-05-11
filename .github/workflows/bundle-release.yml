@@ -29,6 +29,8 @@ jobs:
       WITH_ROZENITE: ${{ vars.WITH_ROZENITE }}
       NODE_ENV: production
       GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+      OUT_AAB: android/app/build/outputs/bundle/release/app-release.aab
+      OUT_APK: android/app/build/outputs/apk/release/app-release.apk
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,23 +44,38 @@ jobs:
           load-storybook: ${{ vars.LOAD_STORYBOOK }}
           uses-cleartext-traffic: ${{ vars.USES_CLEARTEXT_TRAFFIC }}
 
-      - name: bundleRelease
+      - name: bundleRelease assembleRelease
         working-directory: android
         env:
           ENVFILE: ${{ github.workspace }}/.env.production
-        run: ./gradlew bundleRelease --no-daemon --parallel --stacktrace
+        run: ./gradlew bundleRelease assembleRelease --no-daemon --parallel --stacktrace
+
+      - name: Verify Gradle outputs (AAB + APK)
+        run: test -f "$OUT_AAB" && test -f "$OUT_APK"
 
       - uses: actions/upload-artifact@v4
         with:
           name: android-aab-${{ github.run_number }}-${{ github.sha }}
-          path: android/app/build/outputs/bundle/release/app-release.aab
+          path: ${{ env.OUT_AAB }}
           retention-days: 30
           if-no-files-found: error
 
+      - name: Firebase App Distribution (APK only)
+        uses: wzieba/Firebase-Distribution-Github-Action@v1.7.1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.CREDENTIAL_FILE_CONTENT }}
+          file: ${{ env.OUT_APK }}
+          groups: testers
+
       - if: always()
         run: |
-          echo "## AAB (Play)" >> "$GITHUB_STEP_SUMMARY"
-          echo "android-aab-${{ github.run_number }}-${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## AAB (GitHub artifact — Play Console)"
+            echo "Artifact: android-aab-${{ github.run_number }}-${{ github.sha }}"
+            echo "## Firebase App Distribution"
+            echo "APK: ${OUT_APK}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.release_notes != ''
         run: printf '%s\n' "Notes — ${{ github.event.inputs.release_notes }}" >> "$GITHUB_STEP_SUMMARY"
