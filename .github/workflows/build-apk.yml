@@ -2,6 +2,7 @@ name: Build APK
 
 on:
   workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,6 +17,7 @@ jobs:
     timeout-minutes: 45
     env:
       GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+      OUT_APK: android/app/build/outputs/apk/release/app-release.apk
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,15 +40,15 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: android-pr-apk-${{ github.event.pull_request.number }}-${{ github.sha }}
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: android-pr-apk-${{ github.event.pull_request.number || github.run_id }}-${{ github.sha }}
+          path: ${{ env.OUT_APK }}
           retention-days: 7
           if-no-files-found: error
 
       - if: success()
         run: |
-          echo "## APK" >> "$GITHUB_STEP_SUMMARY"
-          echo "android-pr-apk-${{ github.event.pull_request.number }}-${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "## APK artifact" >> "$GITHUB_STEP_SUMMARY"
+          echo "Name: android-pr-apk-${{ github.event.pull_request.number || github.run_id }}-${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
 
       - if: always()
         run: rm -f android/app/google-services.json
