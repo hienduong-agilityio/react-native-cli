@@ -38,5 +38,15 @@ target 'StylishEcommerce' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Xcode 26.4+ (Apple Clang 21): fmt 11.x hits consteval errors in C++20.
+    # https://github.com/fmtlib/fmt/issues/4740 — compile fmt as C++17 until RN bumps fmt.
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'fmt'
+
+      target.build_configurations.each do |bc|
+        bc.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+      end
+    end
   end
 end
